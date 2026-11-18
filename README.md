@@ -19,29 +19,86 @@ flowchart LR
 
 ## Ubuntuで使う
 
-Python 3.10以上、Git、およびPythonの仮想環境機能が必要です。配布用wheelを取得し、同じディレクトリで実行します。
+Python 3.10以上、Git、Pythonの仮想環境機能が必要です。以下の例は、このツールのディレクトリを起点に実行します。
+
+### 1. ソースを取得する
+
+```sh
+git clone https://github.com/LAC-Japan/scan_github_repository.git
+cd scan_github_repository
+```
+
+### 2. 仮想環境を作成してインストールする
 
 ```sh
 python3 -m venv .venv
-.venv/bin/python -m pip install ./scan_github_repository-0.4.2-py3-none-any.whl
-.venv/bin/sync-package
-.venv/bin/scan_github_repository https://example.org/team/project.git ./checkout
-.venv/bin/scan-directory ./existing-project
+.venv/bin/python -m pip install .
 ```
 
-ソースから導入する場合は、展開したプロジェクトの直下で `.venv/bin/python -m pip install .` を実行します。
+配布用wheelを使う場合は、wheelを置いたディレクトリで仮想環境を作成し、次のコマンドでインストールします。ファイル名は取得した版に合わせてください。
 
-### 判定データを同期する
-
-配布物に悪性パッケージCSVは入っていません。初回に `sync-package` を実行し、OSVのPyPIエクスポートから、撤回されていないOpenSSFの悪性パッケージ情報を取得します。Datadogの公開マニフェストも使う場合は `sync-package --datadog` を実行します。取得対象はアドバイザリーのメタデータです。
-
-保存先は通常 `~/.local/share/scan_github_repository/` です。Windowsでは `%LOCALAPPDATA%\scan_github_repository`、`XDG_DATA_HOME` を設定済みならその配下を使います。各コマンドに同じ `--data-dir` を指定するか、`SCAN_GITHUB_REPOSITORY_DATA_DIR` を設定すると変更できます。
+```sh
+.venv/bin/python -m pip install ./scan_github_repository-0.4.2-py3-none-any.whl
+```
 
 旧 `scan-clone` から更新する場合は、新しい仮想環境にインストールしてください。同期済みの旧保存先と `SCAN_CLONE_DATA_DIR` は引き継げます。従来の `scan-clone` コマンドも互換名として使えます。
 
-同期は検証済みのCSVに一度に差し替え、失敗時は前回のCSVを維持します。再同期するとローカルCSVが更新されるため、独自の追補は別ファイルに置き、`--intel-csv` で指定します。同期前のスキャンは `missing_intelligence` と終了コード2を返します。オフライン環境では運用者が取得したOSV ZIPを `sync-package --osv-archive ./all.zip` に渡せます。
+### 3. `sync-package` で判定データを取得する
 
-例のURLは実際のリポジトリURLに置き換えてください。配置先の親ディレクトリは事前に作成します。cloneはHTTPS、SSH、ローカルパスを受け付けます。非公開リポジトリには、事前設定済みのSSHエージェントなどを使います。Ubuntuの配置先ファイルシステムには `renameat2(RENAME_NOREPLACE)` の対応が必要です。
+初回スキャンの前に実行します。
+
+```sh
+.venv/bin/sync-package
+```
+
+| 取得元 | 取り込む情報 |
+| --- | --- |
+| [OSVのPyPIエクスポート](https://google.github.io/osv.dev/data/#per-ecosystem-downloads) | 既定の取得元。OpenSSF Malicious Packagesの `MAL-…` 報告からパッケージ名と影響バージョンを取り込み、撤回済み報告を除きます。 |
+| [DatadogのPyPIマニフェスト](https://github.com/DataDog/malicious-software-packages-dataset/blob/main/samples/pypi/manifest.json) | 任意の追加取得元。悪性パッケージ名と、報告で特定された影響バージョンを取り込みます。 |
+
+両方の取得元を使う場合は、初回も再同期も次のコマンドを実行します。
+
+```sh
+.venv/bin/sync-package --datadog
+```
+
+同期したアドバイザリーのメタデータは、ローカルの `malicious_packages.csv` に保存します。保存先は通常 `~/.local/share/scan_github_repository/` です。Windowsでは `%LOCALAPPDATA%\scan_github_repository`、`XDG_DATA_HOME` を設定済みならその配下を使います。各コマンドの `--data-dir` または環境変数 `SCAN_GITHUB_REPOSITORY_DATA_DIR` で変更できます。
+
+同期成功時にCSVを差し替え、失敗時は前回のCSVを使えます。同期前はスキャンが `missing_intelligence` と終了コード2を返します。別途取得したOSV ZIPから初期化する場合は、次のコマンドを使います。
+
+```sh
+.venv/bin/sync-package --osv-archive ./all.zip
+```
+
+#### 悪性パッケージの検出と判定根拠
+
+スキャン時は、PoCに含まれる `requirements.txt` や `pyproject.toml` などから、依存パッケージ名とバージョンを読み取り、同期済みCSVに照合します。全バージョンが悪性と報告されたパッケージや、侵害が確認された版への固定は `MALICIOUS`、影響版を含み得る未固定の依存や範囲指定は `SUSPICIOUS` です。一部の既知悪性パッケージは、対応を確認済みのPython importからも検出します。どの依存が判定に関わったかはJSONの `category`、`file`、`line`、依存検出時の `dependency` で追えます。アドバイザリーの出典はCSVの `sources` 列で確認できます。
+
+### 4. スキャン方法を選ぶ
+
+#### 新しくcloneしてスキャンする
+
+```sh
+.venv/bin/scan_github_repository https://example.org/team/project.git ./checkout
+```
+
+検査を通過したチェックアウトを `./checkout` に配置します。例のURLを実際のリポジトリURLに置き換え、配置先の親ディレクトリを事前に作成してください。HTTPS、SSH、ローカルパスが使えます。非公開リポジトリには事前設定済みのSSHエージェントなどを使います。Ubuntuの配置先ファイルシステムには `renameat2(RENAME_NOREPLACE)` の対応が必要です。
+
+#### クローン済みのリポジトリをスキャンする
+
+```sh
+.venv/bin/scan-directory ~/work/existing-repository
+```
+
+指定した作業ツリーの現在のファイルをその場で検査します。未コミットの変更も対象です。
+
+#### 任意のディレクトリをスキャンする
+
+```sh
+.venv/bin/scan-directory ./extracted-poc
+```
+
+展開済みのPoCやリポジトリ内のサブディレクトリなどを指定できます。指定先をルートに再帰的に検査します。
 
 ## 検出ルールを設定する
 
@@ -83,7 +140,7 @@ scan_github_repository/
   intelligence.py             悪性パッケージ情報の読み込みと検証
   sync_package.py             公開メタデータの取得・検証・保存
   config/                     重要度ごとのTOML
-  vendor/                     Aramasa由来の検出エンジンとデータ
+  vendor/                     Aramasa由来の検出エンジン
 ```
 
 ## 検査範囲

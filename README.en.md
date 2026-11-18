@@ -19,29 +19,86 @@ flowchart LR
 
 ## Use on Ubuntu
 
-You need Python 3.10 or later, Git, and Python virtual environment support. Run these commands from the directory containing the release wheel.
+You need Python 3.10 or later, Git, and Python virtual environment support. Run the following examples from the tool's directory.
+
+### 1. Get the source
+
+```sh
+git clone https://github.com/LAC-Japan/scan_github_repository.git
+cd scan_github_repository
+```
+
+### 2. Create a virtual environment and install
 
 ```sh
 python3 -m venv .venv
-.venv/bin/python -m pip install ./scan_github_repository-0.4.2-py3-none-any.whl
-.venv/bin/sync-package
-.venv/bin/scan_github_repository https://example.org/team/project.git ./checkout
-.venv/bin/scan-directory ./existing-project
+.venv/bin/python -m pip install .
 ```
 
-To install from source, run `.venv/bin/python -m pip install .` from the extracted project directory.
+To install from a release wheel, create the virtual environment in the directory containing the wheel. Use the filename for the version you downloaded.
 
-### Synchronize package intelligence
-
-Release artifacts ship without a malware database. Run `sync-package` before your first scan to retrieve active OpenSSF PyPI malware advisories from OSV. Run `sync-package --datadog` to include Datadog's public PyPI manifest. Downloads contain advisory metadata.
-
-The default directory is `~/.local/share/scan_github_repository/` on Linux and `%LOCALAPPDATA%\scan_github_repository` on Windows. When set, `XDG_DATA_HOME` takes precedence. Use the same `--data-dir` on each command or set `SCAN_GITHUB_REPOSITORY_DATA_DIR` to customize the location.
+```sh
+.venv/bin/python -m pip install ./scan_github_repository-0.4.2-py3-none-any.whl
+```
 
 When upgrading from `scan-clone`, install this release in a new virtual environment. Existing synchronized data and the `SCAN_CLONE_DATA_DIR` setting are supported. The old `scan-clone` command remains available as an alias.
 
-The sync command validates the new CSV before atomically replacing the prior one. Keep operator-maintained supplements in a separate file and pass it with `--intel-csv`. Scans without an initialized database return `missing_intelligence` and exit code 2. For offline initialization, provide an exported PyPI OSV archive with `sync-package --osv-archive ./all.zip`.
+### 3. Get package intelligence with `sync-package`
 
-Replace the example URL with your repository URL. Create the destination's parent directory first. The clone command accepts HTTPS, SSH, and local paths. For private repositories, use a preconfigured authentication method such as an SSH agent. On Ubuntu the destination filesystem must support `renameat2(RENAME_NOREPLACE)`.
+Run this command before your first scan.
+
+```sh
+.venv/bin/sync-package
+```
+
+| Source | Data imported |
+| --- | --- |
+| [OSV's PyPI export](https://google.github.io/osv.dev/data/#per-ecosystem-downloads) | Default. Imports package names and affected versions from OpenSSF Malicious Packages `MAL-…` advisories and skips withdrawn reports. |
+| [Datadog's PyPI manifest](https://github.com/DataDog/malicious-software-packages-dataset/blob/main/samples/pypi/manifest.json) | Optional. Adds malicious package names and any affected versions identified in the manifest. |
+
+To use both sources, run this command for the initial sync and subsequent updates.
+
+```sh
+.venv/bin/sync-package --datadog
+```
+
+The command writes advisory metadata to a local `malicious_packages.csv`. The default directory is `~/.local/share/scan_github_repository/` on Linux and `%LOCALAPPDATA%\scan_github_repository` on Windows. When set, `XDG_DATA_HOME` takes precedence. Use `--data-dir` on each command or set `SCAN_GITHUB_REPOSITORY_DATA_DIR` to customize the location.
+
+A successful sync replaces the CSV. After a failed sync, the previous CSV is still usable. Before the first sync, scans return `missing_intelligence` and exit code 2. To initialize from a previously downloaded OSV export, run the following command.
+
+```sh
+.venv/bin/sync-package --osv-archive ./all.zip
+```
+
+#### How package intelligence contributes to findings
+
+The scanner compares the package names and version constraints it reads from a PoC's dependency files, such as `requirements.txt` and `pyproject.toml`, with the synchronized CSV. A package reported malicious across all versions or a pin to a confirmed compromised version produces a `MALICIOUS` finding. An unpinned dependency or a range that may allow a compromised version produces a `SUSPICIOUS` finding. The scanner can also flag Python imports mapped to specific known malicious packages. Use `category`, `file`, `line`, and `dependency` on dependency findings to trace the decision in the JSON report. The CSV's `sources` column records advisory provenance.
+
+### 4. Choose what to scan
+
+#### Clone and scan a new checkout
+
+```sh
+.venv/bin/scan_github_repository https://example.org/team/project.git ./checkout
+```
+
+A checkout that passes the scan is placed at `./checkout`. Replace the example URL with your repository URL and create the destination's parent directory first. The command accepts HTTPS, SSH, and local paths. For private repositories, use a preconfigured authentication method such as an SSH agent. On Ubuntu the destination filesystem must support `renameat2(RENAME_NOREPLACE)`.
+
+#### Scan an existing clone
+
+```sh
+.venv/bin/scan-directory ~/work/existing-repository
+```
+
+This scans the current files in the working tree in place, including uncommitted changes.
+
+#### Scan a local directory
+
+```sh
+.venv/bin/scan-directory ./extracted-poc
+```
+
+You can point the scanner at an extracted PoC or a subdirectory of a repository. The scan walks recursively from the directory you specify.
 
 ## Configure detections
 
@@ -83,7 +140,7 @@ scan_github_repository/
   intelligence.py             Load and validate package intelligence
   sync_package.py             Download and validate public advisory metadata
   config/                     One TOML file per severity
-  vendor/                     Detector and data adapted from Aramasa
+  vendor/                     Detector adapted from Aramasa
 ```
 
 ## Scan coverage
