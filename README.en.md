@@ -1,0 +1,131 @@
+# scan_github_repository
+
+> This analysis script was created for a presentation at CODE BLUE 2026.
+
+[日本語](README.md) · [Changelog](CHANGELOG.md)
+
+Clone a Git repository into a temporary directory, scan it, and publish the exact commit if it passes your policy. Use `scan-directory` to scan a directory you already have.
+
+```mermaid
+flowchart LR
+    Clone["scan_github_repository"] --> Temp["Clone into a temporary directory"]
+    Local["scan-directory"] --> Scan["Static scan"]
+    Temp --> Scan
+    Scan --> Policy["Apply INFO, SUSPICIOUS and MALICIOUS settings"]
+    Policy --> Report["Write a JSON report"]
+    Policy -->|Clone passes| Publish["Publish the scanned commit"]
+    Policy -->|Blocked or error| Stop["Exit without publishing"]
+```
+
+## Use on Ubuntu
+
+You need Python 3.10 or later, Git, and Python virtual environment support. Run these commands from the directory containing the release wheel.
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install ./scan_github_repository-0.4.2-py3-none-any.whl
+.venv/bin/sync-package
+.venv/bin/scan_github_repository https://example.org/team/project.git ./checkout
+.venv/bin/scan-directory ./existing-project
+```
+
+To install from source, run `.venv/bin/python -m pip install .` from the extracted project directory.
+
+### Synchronize package intelligence
+
+Release artifacts ship without a malware database. Run `sync-package` before your first scan to retrieve active OpenSSF PyPI malware advisories from OSV. Run `sync-package --datadog` to include Datadog's public PyPI manifest. Downloads contain advisory metadata.
+
+The default directory is `~/.local/share/scan_github_repository/` on Linux and `%LOCALAPPDATA%\scan_github_repository` on Windows. When set, `XDG_DATA_HOME` takes precedence. Use the same `--data-dir` on each command or set `SCAN_GITHUB_REPOSITORY_DATA_DIR` to customize the location.
+
+When upgrading from `scan-clone`, install this release in a new virtual environment. Existing synchronized data and the `SCAN_CLONE_DATA_DIR` setting are supported. The old `scan-clone` command remains available as an alias.
+
+The sync command validates the new CSV before atomically replacing the prior one. Keep operator-maintained supplements in a separate file and pass it with `--intel-csv`. Scans without an initialized database return `missing_intelligence` and exit code 2. For offline initialization, provide an exported PyPI OSV archive with `sync-package --osv-archive ./all.zip`.
+
+Replace the example URL with your repository URL. Create the destination's parent directory first. The clone command accepts HTTPS, SSH, and local paths. For private repositories, use a preconfigured authentication method such as an SSH agent. On Ubuntu the destination filesystem must support `renameat2(RENAME_NOREPLACE)`.
+
+## Configure detections
+
+| Configuration file | Examples of default classifications |
+| --- | --- |
+| [info.toml](scan_github_repository/config/info.toml) | Privacy-focused email services |
+| [suspicious.toml](scan_github_repository/config/suspicious.toml) | Short URLs, executable `.pth` files, ranges that may include compromised versions |
+| [malicious.toml](scan_github_repository/config/malicious.toml) | Known malicious packages and dependencies pinned to known compromised versions |
+
+```sh
+mkdir -p local-policy
+cp scan_github_repository/config/*.toml local-policy/
+.venv/bin/scan-directory --config-dir ./local-policy ./existing-project
+```
+
+- To **change a rule's severity**, move its entry to `[rules]` in the desired severity file. Keep each rule in exactly one file.
+- To **disable a rule**, set its value in `[rules]` to `false`. Matching findings are omitted from the report and verdict.
+- To **report a severity without blocking**, set `block = false` in its file. The default policy records INFO and blocks on SUSPICIOUS or MALICIOUS findings. Custom policies from 0.2 keep their existing blocking settings for each severity, including for the new rules.
+
+Both commands write JSON to standard output. `verdict` is the highest enabled finding severity, `blocked` indicates a policy block, and `incomplete` indicates incomplete coverage. Continue publication only on exit code 0. `rules_sha256` identifies the policy and detector inputs. The clone command also reports the commit SHA. `--scan-timeout` defaults to 120 seconds and `--clone-timeout` to 300 seconds.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Policy passed. Clones are published |
+| 1 | At least one finding blocks the operation |
+| 2 | Configuration, clone, scan, or publication error, timeout, or incomplete scan |
+
+## Project layout
+
+```text
+scan_github_repository/
+  __main__.py                 python -m scan_github_repository entry point
+  clone_cli.py                Clone, scan, and publish
+  scan_cli.py                 scan-directory entry point
+  cli_support.py              Shared command options and reporting
+  scanner.py                  Static scan and result classification
+  source_checks.py            Python import and command pattern checks
+  policy.py                   Load and validate classification settings
+  intelligence.py             Load and validate package intelligence
+  sync_package.py             Download and validate public advisory metadata
+  config/                     One TOML file per severity
+  vendor/                     Detector and data adapted from Aramasa
+```
+
+## Scan coverage
+
+Directory depth is unlimited by default. For a bounded first review, use `scan-directory --max-depth 4 ./existing-project`. The same option is available on `scan_github_repository`. The input root is at depth 0, and files at the selected depth are scanned. If the limit skips a directory or an included requirements file, the command returns exit code 2 and withholds publication. The JSON report lists skipped counts under `stats.directories_skipped_depth` and `stats.requirement_includes_skipped_depth`. Rerun without the limit for full coverage.
+
+The scanner checks text files and supported Python dependency declarations in the initial checkout or supplied directory. It walks directories other than `.git` and follows local requirements and constraints includes. It never executes target code or dependency installers. Dependencies reported as malicious with unknown affected versions and version ranges that may include compromised releases are reported as SUSPICIOUS.
+
+| Detection | Default handling |
+| --- | --- |
+| Python import mapped to a malicious package by published research | MALICIOUS. Local implementations, relative imports, comments, and strings are excluded |
+| A shell script pipes a literal HTTP(S) URL from `curl` or `wget` into a shell | SUSPICIOUS |
+| The same command in documentation, or a shortened URL used as a reference in documentation or a comment | INFO |
+| A shortened URL presented as a Markdown download link | SUSPICIOUS |
+| ELF, PE, and Mach-O files | Incomplete scan. JSON reports each format separately |
+
+The commands return exit code 2 for read errors, files larger than 5 MiB, unreadable text, executable formats, archives, LFS pointers, links, special files, or unresolved requirements includes. The clone command also checks the Git index for submodules and symbolic links. Counts appear in the JSON `stats` or `unsupported` object.
+
+The malicious import check uses the verified mappings in `source_checks.py`, and shell detection covers simple pipelines written directly in the source. Git history, the contents of other binary formats, dynamic imports, commands assembled from variables, dependencies resolved at install time, and unknown malware remain outside this coverage. Use a stable directory for standalone scans.
+
+### Add package intelligence
+
+Scans use the synchronized local CSV. Use `--intel-csv` to supplement it with reviewed or private intelligence. The scanner performs no network requests to fetch or update intelligence.
+
+```sh
+.venv/bin/scan-directory --intel-csv ./trusted-intel.csv ./existing-project
+```
+
+Use UTF-8 and include the columns `package,policy,versions,ranges,sources`. Set the policy to `all_versions` or `versions_only`. Separate multiple versions or ranges within their respective columns with semicolons. Express ranges using Python version specifiers. The extra CSV adds to the synchronized intelligence. Only provide intelligence files controlled by the operator.
+
+This example flags `example-library` version `1.4.2` and versions from `2.0` inclusive to `2.3` exclusive.
+
+```csv
+package,policy,versions,ranges,sources
+example-library,versions_only,1.4.2,">=2.0,<2.3",Advisory URL
+```
+
+An affected pin is MALICIOUS. An unpinned requirement or a range that may allow an affected release is SUSPICIOUS. A requirement proven disjoint from the affected versions produces no finding for this rule. Version findings include the declared `dependency` in JSON. An all-versions entry in the extra CSV preserves an existing version-limited rule for the same name. The JSON lists such conflicts under `intel_scope_conflicts` when the scanned project references the dependency.
+
+A direct reference to a same-named Git fork or other unverified artifact is SUSPICIOUS. For a same-named wheel or source distribution on PyPI's official file host, the scanner checks the version in the filename. OSV fixed-version boundaries include earlier prereleases.
+
+## License
+
+Commercial use of scan_github_repository is prohibited. See the [project license](LICENSE) and [third-party notices](NOTICE.md).
+

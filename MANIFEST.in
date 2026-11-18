@@ -1,0 +1,5 @@
+include README.en.md
+include CHANGELOG.md
+recursive-include tests test_*.py
+prune data
+exclude scan_github_repository/vendor/malicious_packages.csv

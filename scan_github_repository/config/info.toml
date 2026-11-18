@@ -1,0 +1,15 @@
+# INFO は JSON に記録し、既定では配置を止めない。
+block = false
+
+[rules]
+# プライバシー重視のメールアドレス
+privacy_mail = true
+# Proton Mail 関連のキーワード
+privacy_mail_keyword = true
+# プライバシー重視のメールサービスへの URL
+privacy_mail_url = true
+# 文書の参照先やコードコメントにある短縮URL
+shortened_url_reference = true
+# 文書に書かれた、外部取得からシェル実行までのコマンド例
+remote_shell_example = true
+

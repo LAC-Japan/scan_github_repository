@@ -1,0 +1,27 @@
+scan_github_repository Noncommercial License
+
+Copyright (c) 2026 scan-clone contributors.
+All rights reserved.
+
+You may use, modify, and redistribute scan_github_repository in source or binary form,
+including modified versions, for noncommercial purposes under these terms:
+
+1. If you distribute source code, keep the copyright notice, these terms,
+   and the disclaimer below in the distributed source.
+2. If you distribute binaries, include the same notice, terms, and disclaimer
+   in the accompanying documentation or other materials.
+3. Commercial use and commercial distribution require prior written
+   permission from the applicable copyright holders. This restriction
+   includes resale, paid services, and internal use that supports a
+   for-profit business.
+4. If you distribute a modified version, identify the changes. Third-party
+   materials retain their own license terms. See NOTICE.md.
+
+Disclaimer
+
+The software is supplied as is. To the extent allowed by law, its copyright
+holders and contributors disclaim all warranties, including implied warranties
+of merchantability, fitness for a particular purpose, and noninfringement.
+They shall not be liable for damages or losses arising from use of the
+software, whether the claim arises in contract, tort, or on another basis,
+even if they were informed that such damage or loss was possible.

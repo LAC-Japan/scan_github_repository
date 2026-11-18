@@ -1,0 +1,11 @@
+# MALICIOUS の検出で終了コード 1 を返す。
+block = true
+
+[rules]
+# 全バージョンが悪性と登録されているパッケージ
+known_malicious_package = true
+# 依存が既知の侵害バージョンに固定されている
+known_compromised_package_version = true
+# 公開調査で対応を確認した既知悪性パッケージのimport
+known_malicious_import = true
+

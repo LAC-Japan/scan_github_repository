@@ -1,0 +1,25 @@
+# SUSPICIOUS の検出で終了コード 1 を返す。
+block = true
+
+[rules]
+# 未固定の依存、または既知の侵害版を含み得るバージョン範囲
+possible_compromised_package_version = true
+# Python 起動時にコードを実行する .pth ファイル
+executable_pth = true
+# 使い捨てメールアドレス
+temporary_mail = true
+# 短縮 URL
+shortened_url = true
+# シェルスクリプトにある、外部取得からシェル実行までのパイプ
+remote_shell_pipeline = true
+# 公開 Webhook 受信サービス
+webhook_receiver = true
+# Discord Webhook
+discord_webhook = true
+# Telegram Bot API
+telegram_bot_api = true
+# テキスト投稿サービス
+paste_service = true
+# 匿名ファイル共有サービス
+anonymous_file_host = true
+

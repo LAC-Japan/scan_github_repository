@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scan_github_repository"
+version = "0.4.2"
+description = "Scan a Git checkout before publishing it to a destination."
+readme = "README.md"
+license = "LicenseRef-ScanGitHubRepository-Noncommercial AND Apache-2.0"
+license-files = ["LICENSE", "NOTICE.md", "scan_github_repository/vendor/LICENSE-APACHE-2.0"]
+requires-python = ">=3.10"
+dependencies = ["packaging>=23", "tomli>=2; python_version < '3.11'"]
+
+[project.scripts]
+scan_github_repository = "scan_github_repository.clone_cli:main"
+scan-clone = "scan_github_repository.clone_cli:main"
+scan-directory = "scan_github_repository.scan_cli:main"
+sync-package = "scan_github_repository.sync_package:main"
+
+[tool.setuptools]
+packages = ["scan_github_repository", "scan_github_repository.vendor"]
+include-package-data = false
+
+[tool.setuptools.package-data]
+scan_github_repository = ["config/*.toml"]
+"scan_github_repository.vendor" = ["LICENSE-APACHE-2.0"]
+
