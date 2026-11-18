@@ -19,36 +19,36 @@ flowchart LR
 
 ## Ubuntuで使う
 
-Python 3.10以上、Git、Pythonの仮想環境機能が必要です。以下の例は、このツールのディレクトリを起点に実行します。
+Python 3.10以上、Git、pipが必要です。以下の例は、このツールのディレクトリを起点に実行します。
 
-### 1. ソースを取得する
+### 1. ソースを取得してインストールする
 
 ```sh
 git clone https://github.com/LAC-Japan/scan_github_repository.git
 cd scan_github_repository
 ```
 
-### 2. 仮想環境を作成してインストールする
+仮想環境を使う場合は、インストールの前に次を実行します。
 
 ```sh
 python3 -m venv .venv
-.venv/bin/python -m pip install .
+source .venv/bin/activate
 ```
 
-配布用wheelを使う場合は、wheelを置いたディレクトリで仮想環境を作成し、次のコマンドでインストールします。ファイル名は取得した版に合わせてください。
+現在のPython環境にインストールします。
 
 ```sh
-.venv/bin/python -m pip install ./scan_github_repository-0.4.2-py3-none-any.whl
+python3 -m pip install .
 ```
 
-旧 `scan-clone` から更新する場合は、新しい仮想環境にインストールしてください。同期済みの旧保存先と `SCAN_CLONE_DATA_DIR` は引き継げます。従来の `scan-clone` コマンドも互換名として使えます。
+旧 `scan-clone` から更新する場合も、同期済みの旧保存先と `SCAN_CLONE_DATA_DIR` は引き継げます。従来の `scan-clone` コマンドは互換名として使えます。
 
-### 3. `sync-package` で判定データを取得する
+### 2. `sync-package` で判定データを取得する
 
 初回スキャンの前に実行します。
 
 ```sh
-.venv/bin/sync-package
+sync-package
 ```
 
 | 取得元 | 取り込む情報 |
@@ -59,7 +59,7 @@ python3 -m venv .venv
 両方の取得元を使う場合は、初回も再同期も次のコマンドを実行します。
 
 ```sh
-.venv/bin/sync-package --datadog
+sync-package --datadog
 ```
 
 同期したアドバイザリーのメタデータは、ローカルの `malicious_packages.csv` に保存します。保存先は通常 `~/.local/share/scan_github_repository/` です。Windowsでは `%LOCALAPPDATA%\scan_github_repository`、`XDG_DATA_HOME` を設定済みならその配下を使います。各コマンドの `--data-dir` または環境変数 `SCAN_GITHUB_REPOSITORY_DATA_DIR` で変更できます。
@@ -67,19 +67,19 @@ python3 -m venv .venv
 同期成功時にCSVを差し替え、失敗時は前回のCSVを使えます。同期前はスキャンが `missing_intelligence` と終了コード2を返します。別途取得したOSV ZIPから初期化する場合は、次のコマンドを使います。
 
 ```sh
-.venv/bin/sync-package --osv-archive ./all.zip
+sync-package --osv-archive ./all.zip
 ```
 
 #### 悪性パッケージの検出と判定根拠
 
 スキャン時は、PoCに含まれる `requirements.txt` や `pyproject.toml` などから、依存パッケージ名とバージョンを読み取り、同期済みCSVに照合します。全バージョンが悪性と報告されたパッケージや、侵害が確認された版への固定は `MALICIOUS`、影響版を含み得る未固定の依存や範囲指定は `SUSPICIOUS` です。一部の既知悪性パッケージは、対応を確認済みのPython importからも検出します。どの依存が判定に関わったかはJSONの `category`、`file`、`line`、依存検出時の `dependency` で追えます。アドバイザリーの出典はCSVの `sources` 列で確認できます。
 
-### 4. スキャン方法を選ぶ
+### 3. スキャン方法を選ぶ
 
 #### 新しくcloneしてスキャンする
 
 ```sh
-.venv/bin/scan_github_repository https://example.org/team/project.git ./checkout
+scan_github_repository https://example.org/team/project.git ./checkout
 ```
 
 検査を通過したチェックアウトを `./checkout` に配置します。例のURLを実際のリポジトリURLに置き換え、配置先の親ディレクトリを事前に作成してください。HTTPS、SSH、ローカルパスが使えます。非公開リポジトリには事前設定済みのSSHエージェントなどを使います。Ubuntuの配置先ファイルシステムには `renameat2(RENAME_NOREPLACE)` の対応が必要です。
@@ -87,7 +87,7 @@ python3 -m venv .venv
 #### クローン済みのリポジトリをスキャンする
 
 ```sh
-.venv/bin/scan-directory ~/work/existing-repository
+scan-directory ~/work/existing-repository
 ```
 
 指定した作業ツリーの現在のファイルをその場で検査します。未コミットの変更も対象です。
@@ -95,7 +95,7 @@ python3 -m venv .venv
 #### 任意のディレクトリをスキャンする
 
 ```sh
-.venv/bin/scan-directory ./extracted-poc
+scan-directory ./extracted-poc
 ```
 
 展開済みのPoCやリポジトリ内のサブディレクトリなどを指定できます。指定先をルートに再帰的に検査します。
@@ -111,7 +111,7 @@ python3 -m venv .venv
 ```sh
 mkdir -p local-policy
 cp scan_github_repository/config/*.toml local-policy/
-.venv/bin/scan-directory --config-dir ./local-policy ./existing-project
+scan-directory --config-dir ./local-policy ./existing-project
 ```
 
 - **重要度を変える**場合は、対象のルールを別の重要度ファイルの `[rules]` に移します。各ルールは3ファイルのうち1か所に置きます。
@@ -166,7 +166,7 @@ scan_github_repository/
 既定では同期済みローカルCSVを使います。情報源に未収録の調査済みパッケージや社内情報は `--intel-csv` で追加できます。スキャン中は判定データを取得・更新しません。
 
 ```sh
-.venv/bin/scan-directory --intel-csv ./trusted-intel.csv ./existing-project
+scan-directory --intel-csv ./trusted-intel.csv ./existing-project
 ```
 
 CSVはUTF-8で、`package,policy,versions,ranges,sources` の列が必要です。ポリシーは `all_versions` か `versions_only` とし、複数のバージョン・範囲はそれぞれの列でセミコロン区切りにします。範囲はPythonのバージョン指定子を使います。追加CSVの情報は同期データに加算されます。判定元には運用者が管理するCSVを使ってください。
