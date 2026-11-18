@@ -35,20 +35,20 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-Install into the current Python environment.
+Install the dependencies into the current Python environment. Run the remaining commands from this tool’s directory.
 
 ```sh
-python3 -m pip install .
+python3 -m pip install -r requirements.txt
 ```
 
-When upgrading from `scan-clone`, you can continue using existing synchronized data and the `SCAN_CLONE_DATA_DIR` setting. The old `scan-clone` command remains available as an alias.
+When upgrading from `scan-clone`, you can continue using existing synchronized data and the `SCAN_CLONE_DATA_DIR` setting. Wheel installations provide the old `scan-clone` command as an alias.
 
 ### 2. Get package intelligence with `sync-package`
 
 Run this command before your first scan.
 
 ```sh
-sync-package
+python3 -m scan_github_repository.sync_package
 ```
 
 | Source | Data imported |
@@ -59,7 +59,7 @@ sync-package
 To use both sources, run this command for the initial sync and subsequent updates.
 
 ```sh
-sync-package --datadog
+python3 -m scan_github_repository.sync_package --datadog
 ```
 
 The command writes advisory metadata to a local `malicious_packages.csv`. The default directory is `~/.local/share/scan_github_repository/` on Linux and `%LOCALAPPDATA%\scan_github_repository` on Windows. When set, `XDG_DATA_HOME` takes precedence. Use `--data-dir` on each command or set `SCAN_GITHUB_REPOSITORY_DATA_DIR` to customize the location.
@@ -67,7 +67,7 @@ The command writes advisory metadata to a local `malicious_packages.csv`. The de
 A successful sync replaces the CSV. After a failed sync, the previous CSV is still usable. Before the first sync, scans return `missing_intelligence` and exit code 2. To initialize from a previously downloaded OSV export, run the following command.
 
 ```sh
-sync-package --osv-archive ./all.zip
+python3 -m scan_github_repository.sync_package --osv-archive ./all.zip
 ```
 
 #### How package intelligence contributes to findings
@@ -79,7 +79,7 @@ The scanner compares the package names and version constraints it reads from a P
 #### Clone and scan a new checkout
 
 ```sh
-scan_github_repository https://example.org/team/project.git ./checkout
+python3 -m scan_github_repository https://example.org/team/project.git ./checkout
 ```
 
 A checkout that passes the scan is placed at `./checkout`. Replace the example URL with your repository URL and create the destination's parent directory first. The command accepts HTTPS, SSH, and local paths. For private repositories, use a preconfigured authentication method such as an SSH agent. On Ubuntu the destination filesystem must support `renameat2(RENAME_NOREPLACE)`.
@@ -87,7 +87,7 @@ A checkout that passes the scan is placed at `./checkout`. Replace the example U
 #### Scan an existing clone
 
 ```sh
-scan-directory ~/work/existing-repository
+python3 -m scan_github_repository.scan_cli ~/work/existing-repository
 ```
 
 This scans the current files in the working tree in place, including uncommitted changes.
@@ -95,7 +95,7 @@ This scans the current files in the working tree in place, including uncommitted
 #### Scan a local directory
 
 ```sh
-scan-directory ./extracted-poc
+python3 -m scan_github_repository.scan_cli ./extracted-poc
 ```
 
 You can point the scanner at an extracted PoC or a subdirectory of a repository. The scan walks recursively from the directory you specify.
@@ -111,7 +111,7 @@ You can point the scanner at an extracted PoC or a subdirectory of a repository.
 ```sh
 mkdir -p local-policy
 cp scan_github_repository/config/*.toml local-policy/
-scan-directory --config-dir ./local-policy ./existing-project
+python3 -m scan_github_repository.scan_cli --config-dir ./local-policy ./existing-project
 ```
 
 - To **change a rule's severity**, move its entry to `[rules]` in the desired severity file. Keep each rule in exactly one file.
@@ -145,7 +145,7 @@ scan_github_repository/
 
 ## Scan coverage
 
-Directory depth is unlimited by default. For a bounded first review, use `scan-directory --max-depth 4 ./existing-project`. The same option is available on `scan_github_repository`. The input root is at depth 0, and files at the selected depth are scanned. If the limit skips a directory or an included requirements file, the command returns exit code 2 and withholds publication. The JSON report lists skipped counts under `stats.directories_skipped_depth` and `stats.requirement_includes_skipped_depth`. Rerun without the limit for full coverage.
+Directory depth is unlimited by default. For a bounded first review, use `python3 -m scan_github_repository.scan_cli --max-depth 4 ./existing-project`. The same option is available on `scan_github_repository`. The input root is at depth 0, and files at the selected depth are scanned. If the limit skips a directory or an included requirements file, the command returns exit code 2 and withholds publication. The JSON report lists skipped counts under `stats.directories_skipped_depth` and `stats.requirement_includes_skipped_depth`. Rerun without the limit for full coverage.
 
 The scanner checks text files and supported Python dependency declarations in the initial checkout or supplied directory. It walks directories other than `.git` and follows local requirements and constraints includes. It never executes target code or dependency installers. Dependencies reported as malicious with unknown affected versions and version ranges that may include compromised releases are reported as SUSPICIOUS.
 
@@ -166,7 +166,7 @@ The malicious import check uses the verified mappings in `source_checks.py`, and
 Scans use the synchronized local CSV. Use `--intel-csv` to supplement it with reviewed or private intelligence. The scanner performs no network requests to fetch or update intelligence.
 
 ```sh
-scan-directory --intel-csv ./trusted-intel.csv ./existing-project
+python3 -m scan_github_repository.scan_cli --intel-csv ./trusted-intel.csv ./existing-project
 ```
 
 Use UTF-8 and include the columns `package,policy,versions,ranges,sources`. Set the policy to `all_versions` or `versions_only`. Separate multiple versions or ranges within their respective columns with semicolons. Express ranges using Python version specifiers. The extra CSV adds to the synchronized intelligence. Only provide intelligence files controlled by the operator.

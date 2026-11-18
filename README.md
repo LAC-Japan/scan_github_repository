@@ -35,20 +35,20 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-現在のPython環境にインストールします。
+現在のPython環境に依存パッケージをインストールします。以降のコマンドは、このツールのディレクトリで実行します。
 
 ```sh
-python3 -m pip install .
+python3 -m pip install -r requirements.txt
 ```
 
-旧 `scan-clone` から更新する場合も、同期済みの旧保存先と `SCAN_CLONE_DATA_DIR` は引き継げます。従来の `scan-clone` コマンドは互換名として使えます。
+旧 `scan-clone` から更新する場合も、同期済みの旧保存先と `SCAN_CLONE_DATA_DIR` は引き継げます。wheelをインストールした環境では、従来の `scan-clone` コマンドも互換名として使えます。
 
 ### 2. `sync-package` で判定データを取得する
 
 初回スキャンの前に実行します。
 
 ```sh
-sync-package
+python3 -m scan_github_repository.sync_package
 ```
 
 | 取得元 | 取り込む情報 |
@@ -59,7 +59,7 @@ sync-package
 両方の取得元を使う場合は、初回も再同期も次のコマンドを実行します。
 
 ```sh
-sync-package --datadog
+python3 -m scan_github_repository.sync_package --datadog
 ```
 
 同期したアドバイザリーのメタデータは、ローカルの `malicious_packages.csv` に保存します。保存先は通常 `~/.local/share/scan_github_repository/` です。Windowsでは `%LOCALAPPDATA%\scan_github_repository`、`XDG_DATA_HOME` を設定済みならその配下を使います。各コマンドの `--data-dir` または環境変数 `SCAN_GITHUB_REPOSITORY_DATA_DIR` で変更できます。
@@ -67,7 +67,7 @@ sync-package --datadog
 同期成功時にCSVを差し替え、失敗時は前回のCSVを使えます。同期前はスキャンが `missing_intelligence` と終了コード2を返します。別途取得したOSV ZIPから初期化する場合は、次のコマンドを使います。
 
 ```sh
-sync-package --osv-archive ./all.zip
+python3 -m scan_github_repository.sync_package --osv-archive ./all.zip
 ```
 
 #### 悪性パッケージの検出と判定根拠
@@ -79,7 +79,7 @@ sync-package --osv-archive ./all.zip
 #### 新しくcloneしてスキャンする
 
 ```sh
-scan_github_repository https://example.org/team/project.git ./checkout
+python3 -m scan_github_repository https://example.org/team/project.git ./checkout
 ```
 
 検査を通過したチェックアウトを `./checkout` に配置します。例のURLを実際のリポジトリURLに置き換え、配置先の親ディレクトリを事前に作成してください。HTTPS、SSH、ローカルパスが使えます。非公開リポジトリには事前設定済みのSSHエージェントなどを使います。Ubuntuの配置先ファイルシステムには `renameat2(RENAME_NOREPLACE)` の対応が必要です。
@@ -87,7 +87,7 @@ scan_github_repository https://example.org/team/project.git ./checkout
 #### クローン済みのリポジトリをスキャンする
 
 ```sh
-scan-directory ~/work/existing-repository
+python3 -m scan_github_repository.scan_cli ~/work/existing-repository
 ```
 
 指定した作業ツリーの現在のファイルをその場で検査します。未コミットの変更も対象です。
@@ -95,7 +95,7 @@ scan-directory ~/work/existing-repository
 #### 任意のディレクトリをスキャンする
 
 ```sh
-scan-directory ./extracted-poc
+python3 -m scan_github_repository.scan_cli ./extracted-poc
 ```
 
 展開済みのPoCやリポジトリ内のサブディレクトリなどを指定できます。指定先をルートに再帰的に検査します。
@@ -111,7 +111,7 @@ scan-directory ./extracted-poc
 ```sh
 mkdir -p local-policy
 cp scan_github_repository/config/*.toml local-policy/
-scan-directory --config-dir ./local-policy ./existing-project
+python3 -m scan_github_repository.scan_cli --config-dir ./local-policy ./existing-project
 ```
 
 - **重要度を変える**場合は、対象のルールを別の重要度ファイルの `[rules]` に移します。各ルールは3ファイルのうち1か所に置きます。
@@ -145,7 +145,7 @@ scan_github_repository/
 
 ## 検査範囲
 
-通常はディレクトリの深さを制限しません。調査の初回確認などで走査量を抑える場合は、`scan-directory --max-depth 4 ./existing-project` を使えます。`scan_github_repository` でも同じオプションが使えます。検査対象のルートを深さ0とし、指定した深さにあるファイルまで読みます。上限より深いディレクトリや `-r`・`-c` の参照先を省いた場合は終了コード2になり、配置は行われません。JSONの `stats.directories_skipped_depth` と `stats.requirement_includes_skipped_depth` が省略件数を示します。全体を検査するには上限を外して再実行します。
+通常はディレクトリの深さを制限しません。調査の初回確認などで走査量を抑える場合は、`python3 -m scan_github_repository.scan_cli --max-depth 4 ./existing-project` を使えます。`scan_github_repository` でも同じオプションが使えます。検査対象のルートを深さ0とし、指定した深さにあるファイルまで読みます。上限より深いディレクトリや `-r`・`-c` の参照先を省いた場合は終了コード2になり、配置は行われません。JSONの `stats.directories_skipped_depth` と `stats.requirement_includes_skipped_depth` が省略件数を示します。全体を検査するには上限を外して再実行します。
 
 対象は、初期チェックアウトまたは指定ディレクトリ内のテキストと対応するPython依存定義です。`.git` 以外のディレクトリを走査し、requirementsのローカル `-r`・`-c` 参照もたどります。対象コードや依存関係のインストーラーは実行しません。既知の侵害版を含む可能性を除外できない範囲指定や、影響バージョンが不明な既知の悪性パッケージはSUSPICIOUSとして報告します。
 
@@ -166,7 +166,7 @@ scan_github_repository/
 既定では同期済みローカルCSVを使います。情報源に未収録の調査済みパッケージや社内情報は `--intel-csv` で追加できます。スキャン中は判定データを取得・更新しません。
 
 ```sh
-scan-directory --intel-csv ./trusted-intel.csv ./existing-project
+python3 -m scan_github_repository.scan_cli --intel-csv ./trusted-intel.csv ./existing-project
 ```
 
 CSVはUTF-8で、`package,policy,versions,ranges,sources` の列が必要です。ポリシーは `all_versions` か `versions_only` とし、複数のバージョン・範囲はそれぞれの列でセミコロン区切りにします。範囲はPythonのバージョン指定子を使います。追加CSVの情報は同期データに加算されます。判定元には運用者が管理するCSVを使ってください。

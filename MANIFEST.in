@@ -1,4 +1,5 @@
 include README.en.md
+include requirements.txt
 include CHANGELOG.md
 prune tests
 prune data
